@@ -14,7 +14,7 @@ function init()
     
     robots = [];
     
-    for ( var i = 0 ; i < 50 ; i++)
+    for ( var i = 0 ; i < 150 ; i++)
         robots.push( mkRobot(Math.random()*gameWidth,Math.random()*gameHeight,randTeam()) );
     
     setInterval(function()
@@ -33,7 +33,7 @@ function init()
             
             if ( robot.team != 1 )
                 for ( var ii = i+1 ; ii < robots.length ; ii++ )
-                    if ( ((robot.team == 2 && robots[ii].team == 1) || (robot.team == 3 && robots[ii].team == 2)) && dist22(robot,robots[ii]) < 2*2 )
+                    if ( ((robot.team == 2 && robots[ii].team == 1) || (robot.team == 3 && robots[ii].team == 2)) && dist22(robot,robots[ii]) < 10*10 )
                     {
                         robot.energie += robots[ii].energie;
                         robots[ii].energie = -100;
@@ -75,7 +75,7 @@ function mkRobot(x,y,team)
             , velY : 0
             , angle : 0
             , team : team
-            , energie : 100
+            , energie : 200
             , net : new Float32Array(new ArrayBuffer(netSize))
             };
     
@@ -112,13 +112,14 @@ function updateRobot(r,fa,fd,ea,ed)
     r.velX *= 0.85;
     r.velY *= 0.85;
     
-    r.energie += 1;
+    if ( r.team == 1 )
+        r.energie += 1;
     
     // NET
     r.net[0] = Math.random();
     r.net[1] = r.x / gameWidth;
     r.net[2] = r.y / gameWidth;
-    r.net[3] = r.energie/1000;
+    r.net[3] = r.energie/100;
     
     r.net[4] = fa;
     r.net[5] = fd;
@@ -156,13 +157,13 @@ function updateRobot(r,fa,fd,ea,ed)
     r.velX += trustX( r.angle , speed );
     r.velY += trustY( r.angle , speed );
     
-    r.energie -= speed*2;
+    r.energie -= Math.abs(speed);
     
-    if ( r.net[outPutStart+2] > 0.9 && r.energie > 100 )
+    if ( r.net[outPutStart+2] > 0.5 && r.energie > 300 )
     {
-        r.energie /= 2;
+        r.energie /= 2.2;
         var child = cloneRobot(r);
-        robots.push(r);
+        robots.push(child);
     }
     
     return r.energie <= 0;
