@@ -1,25 +1,57 @@
 document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("keydown",function(){
+    robots.push( mkRobot(Math.random()*gameWidth,Math.random()*gameHeight,randTeam()) );
+});
 
-gameWidth = 600;
-gameHeight = 600;
+gameWidth = innerWidth;
+gameHeight = innerHeight;
 
 function init()
 {
     var canvas = document.createElement("canvas");
-    canvas.height = gameWidth;
-    canvas.width = gameHeight;
+    canvas.height = gameHeight;
+    canvas.width = gameWidth;
     document.body.appendChild(canvas);
     
     ctx = canvas.getContext("2d");
     
     robots = [];
+    food = [];
     
     for ( var i = 0 ; i < 150 ; i++)
         robots.push( mkRobot(Math.random()*gameWidth,Math.random()*gameHeight,randTeam()) );
     
+    time = 0;
     setInterval(function()
     {
-        ctx.clearRect(0,0,1000,1000);
+        time += 1;
+        var draw = time % 8 == 0;
+        
+        if ( draw )
+            ctx.clearRect(0,0,gameWidth,gameHeight);
+        
+        if ( food.length < 1000 )
+            for ( var i = 0 ; i < 2 ; i++ )
+                food.push({ x : Math.random()*gameWidth , y : Math.random()*gameHeight , value : 10 });
+        
+        ctx.fillStyle = "yellow";
+        for ( var i = 0 ; i < food.length ; i++ )
+        {
+            if ( draw )
+                ctx.fillRect(food[i].x,food[i].y,3,3);
+            food[i].value += 0.01;
+            
+            if ( food.length >= 1000 )
+            {
+                var ii = Math.floor(Math.random()*food.length);
+                if ( dist22( food[i] , food[ii] ) < 10*10 )
+                {
+                    food[i].value += food[ii].value;
+                    food.splice(ii,1);
+                    i -= 1;
+                }
+            }
+        }
         
         for ( var i = 0 ; i < robots.length ; i++ )
         {
@@ -29,17 +61,43 @@ function init()
             if ( robot.team == 2 ) ctx.fillStyle = "green";
             if ( robot.team == 3 ) ctx.fillStyle = "blue";
             
-            var dead = updateRobot(robot,0,0,0,0);
+            var dead = updateRobot(robot,robot.fa,robot.fd,robot.ea,robot.ed);
             
             if ( robot.team != 1 )
-                for ( var ii = i+1 ; ii < robots.length ; ii++ )
-                    if ( ((robot.team == 2 && robots[ii].team == 1) || (robot.team == 3 && robots[ii].team == 2)) && dist22(robot,robots[ii]) < 10*10 )
+            {
+                for ( var ii = 0 ; ii < robots.length ; ii++ )
+                {
+                    if ( ((robot.team == 2 && robots[ii].team == 1) || (robot.team == 3 && robots[ii].team == 2)) )
                     {
-                        robot.energie += robots[ii].energie;
-                        robots[ii].energie = -100;
+                        if ( dist22(robot,robots[ii]) < 10*10 )
+                        {
+                            robot.energie += robots[ii].energie;
+                            robots[ii].energie = -100;
+                        }
+                    }
+                    else if ( robot.team+1 == robots[ii].team && dist22(robot,robots[ii]) < 50*50 )
+                    {
+                        robot.ea = getAngle( robots[ii].x , robots[ii].y , robot.x , robot.y );
+                        robot.ed = dist22(robot,robots[ii]);
+                    }
+                    else if ( robot.team == robots[ii].team && dist22(robot,robots[ii]) < 50*50 )
+                    {
+                        robot.fa = getAngle( robots[ii].x , robots[ii].y , robot.x , robot.y );
+                        robot.fd = dist22(robot,robots[ii]);
+                    }
+                }
+            }
+            else
+                for ( var ii = 0 ; ii < food.length ; ii++ )
+                    if ( dist22(robot,food[ii]) < 20*20 )
+                    {
+                        robot.energie += food[ii].value;
+                        food.splice(ii,1);
+                        ii -= 1;
                     }
             
-            ctx.fillRect(robot.x-1,robot.y-1,3,3);
+            if ( draw )
+                ctx.fillRect(robot.x-1,robot.y-1,3,3);
             
             if ( dead )
             {
@@ -47,7 +105,7 @@ function init()
                 i -= 1;
             }
         }
-    },1000/30);
+    },1000/240);
 }
 
 function randTeam()
@@ -58,9 +116,10 @@ function randTeam()
 }
 
 var memSize = 5;
-var netDepth = 3;
-var netWidth = 1      + 2     + 1       + 4                 + memSize;
-//             random + x + y + energie + FA + FD + EA + ED + mem
+var netDepth = 0;
+var netWidth = 1      + 1     + 1       + 2     + 1       + 4                 + memSize;
+var pt1 = netWidth - memSize;
+//             random + cons1 + counter + x + y + energie + FA + FD + EA + ED + mem
 //var outputWidth = 1 + 1 + 1 + 1 + memSize;
 var outputWidth = netWidth;
 var netSize = 4 * netWidth;
@@ -75,6 +134,10 @@ function mkRobot(x,y,team)
             , velY : 0
             , angle : 0
             , team : team
+            , ea : 0
+            , ed : 0
+            , fa : 0
+            , fd : 0
             , energie : 200
             , net : new Float32Array(new ArrayBuffer(netSize))
             };
@@ -90,11 +153,17 @@ function cloneRobot(p)
     var r = mkRobot(p.x,p.y,p.team);
     r.energie = p.energie;
     
+    if ( Math.random() < 0.005 )
+    {
+        r.team += 1;
+        if ( r.team == 4 ) r.team == 3;
+    }
+    
     for ( var i = 0 ; i < p.net.length ; i++ )
         r.net[i] = p.net[i];
     
     for ( var i = 0 ; i < 100 ; i++ )
-        r.net[ Math.floor(Math.random()*r.net.length) ] += (Math.random()*2)-1;
+        r.net[ Math.floor(Math.random()*r.net.length) ] += (Math.random()*1)-0.5;
     
     return r;
 }
@@ -112,28 +181,27 @@ function updateRobot(r,fa,fd,ea,ed)
     r.velX *= 0.85;
     r.velY *= 0.85;
     
-    if ( r.team == 1 )
-        r.energie += 1;
-    
     // NET
     r.net[0] = Math.random();
     r.net[1] = r.x / gameWidth;
     r.net[2] = r.y / gameWidth;
     r.net[3] = r.energie/100;
+    r.net[4] = 1;
+    r.net[5] = Math.sin(time*r.net[10]);
     
-    r.net[4] = fa;
-    r.net[5] = fd;
-    r.net[6] = ea;
-    r.net[7] = ed;
+    r.net[6] = fa;
+    r.net[7] = fd;
+    r.net[8] = ea;
+    r.net[9] = ed;
     
-    var memOutStart = (7 + memSize) * (netDepth+1) + 4;
+    var memOutStart = netWidth * (netDepth+1) + 4;
     for ( var i = 0 ; i < memSize ; i++ )
-        r.net[8+i] = r.net[memOutStart+i]; // TODO GET OLD MEM
+        r.net[pt1+i] = r.net[memOutStart+i]; // TODO GET OLD MEM
     
     for ( var d = 0 ; d < (netDepth+1) ; d++ )
     {
-        var layerStart = (7 + memSize) * (d+1);
-        var lastLayer = (7 + memSize) * d;
+        var layerStart = netWidth * (d+1);
+        var lastLayer = netWidth * d;
         var layerP2 = layerStart + netWidth;
         
         for ( var i = 0 ; i < netWidth ; i++ )
@@ -142,24 +210,27 @@ function updateRobot(r,fa,fd,ea,ed)
             var node = layerStart + i;
             var nodeValue = 0;
             
-            for ( var c = 0 ; c < netWidth ; c++ )
-                nodeValue += r.net[lastLayer+c] * r.net[connStart+c];
+            if ( i == 4 )
+                nodeValue = 10000;
+            else
+                for ( var c = 0 ; c < netWidth ; c++ )
+                    nodeValue += r.net[lastLayer+c] * r.net[connStart+c];
             
             r.net[node] = sigmoid(nodeValue);
         }
     }
     // /NET
     
-    var outPutStart = (7 + memSize) * (netDepth+1);
+    var outPutStart = netWidth * (netDepth+1);
     
-    r.angle += (r.net[outPutStart]-0.5)*20;
-    var speed = r.net[outPutStart+1]-0.5;
+    r.angle = r.net[outPutStart]*360;
+    var speed = (r.net[outPutStart+1]-0.5)/2;
     r.velX += trustX( r.angle , speed );
     r.velY += trustY( r.angle , speed );
     
     r.energie -= Math.abs(speed);
     
-    if ( r.net[outPutStart+2] > 0.5 && r.energie > 300 )
+    if ( r.net[outPutStart+2] > 0.9 && r.energie > 300 )
     {
         r.energie /= 2.2;
         var child = cloneRobot(r);
@@ -186,4 +257,11 @@ function trustY( angle , power )
 function dist22(obj1 , obj2)//same dist2 but with obj
 {
     return Math.pow(obj1.x-obj2.x,2) + Math.pow(obj1.y-obj2.y,2);
+}
+
+function getAngle( tx , ty , mx , my  )
+{
+    var deltaX = mx - tx;
+    var deltaY = my - ty;
+    return (Math.atan2( deltaY , deltaX ))/Math.PI*180;
 }
