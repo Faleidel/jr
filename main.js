@@ -30,28 +30,29 @@ function init()
         if ( draw )
             ctx.clearRect(0,0,gameWidth,gameHeight);
         
-        if ( food.length < 1000 )
+        //if ( food.length < 1000 )
+        if ( Math.random() < 0.5 )
             for ( var i = 0 ; i < 2 ; i++ )
-                food.push({ x : Math.random()*gameWidth , y : Math.random()*gameHeight , value : 10 });
+                food.push({ x : Math.random()*gameWidth , y : Math.random()*gameHeight , value : 40 });
         
         ctx.fillStyle = "yellow";
         for ( var i = 0 ; i < food.length ; i++ )
         {
             if ( draw )
                 ctx.fillRect(food[i].x,food[i].y,3,3);
-            food[i].value += 0.05;
+            //food[i].value += 0.05;
             
-            if ( food.length >= 1000 )
-            {
-                var ii = Math.floor(Math.random()*food.length);
-                if ( dist22( food[i] , food[ii] ) < 10*10 )
-                {
-                    food[i].value += food[ii].value;
-                    food.splice(ii,1);
-                    if ( ii <= i )
-                        i -= 1;
-                }
-            }
+//            if ( food.length >= 1000 )
+//            {
+//                var ii = Math.floor(Math.random()*food.length);
+//                if ( dist22( food[i] , food[ii] ) < 10*10 )
+//                {
+//                    food[i].value += food[ii].value;
+//                    food.splice(ii,1);
+//                    if ( ii <= i )
+//                        i -= 1;
+//                }
+//            }
         }
         
         for ( var i = 0 ; i < robots.length ; i++ )
@@ -72,7 +73,7 @@ function init()
                     {
                         if ( dist22(robot,robots[ii]) < 10*10 )
                         {
-                            robot.energie += robots[ii].energie*2;
+                            robot.energie += Math.abs(robots[ii].energie*2);
                             robots[ii].energie = -100;
                         }
                     }
@@ -85,6 +86,9 @@ function init()
                     {
                         robot.fa = getAngle( robots[ii].x , robots[ii].y , robot.x , robot.y );
                         robot.fd = dist22(robot,robots[ii]);
+                        var e = robot.energie / Math.max(1,robot.net[outPutStart+3]*10000);
+                        robot.energie -= e;
+                        robots[ii].energie += e;
                     }
                 }
             }
@@ -111,9 +115,10 @@ function init()
 
 function randTeam()
 {
-    if ( Math.random() < 0.3 ) return 1;
-    if ( Math.random() < 0.5 ) return 2;
-    return 3;
+    if ( Math.random() < 0.5 ) return 1;
+    //if ( Math.random() < 0.5 ) return 2;
+    return 2;
+    //return 3;
 }
 
 var memSize = 5;
@@ -125,7 +130,8 @@ var pt1 = netWidth - memSize;
 var outputWidth = netWidth;
 var netSize = 4 * netWidth;
 netSize += 4 * outputWidth * netWidth;
-netSize += 4 * netWidth * netWidth * netDepth;
+netSize += 4 * (netWidth+1) * netWidth * netDepth;
+outPutStart = (netSize/4) - netWidth * (netDepth+1);
 
 function mkRobot(x,y,team)
 {
@@ -157,7 +163,7 @@ function cloneRobot(p)
     if ( Math.random() < 0.005 )
     {
         r.team += 1;
-        if ( r.team == 4 ) r.team == 3;
+        if ( r.team > 2 ) r.team == 2;
     }
     
     for ( var i = 0 ; i < p.net.length ; i++ )
@@ -195,14 +201,15 @@ function updateRobot(r,fa,fd,ea,ed)
     r.net[8] = ea;
     r.net[9] = ed;
     
-    var memOutStart = netWidth * (netDepth+1) + 4;
+    var memOutStart = netWidth + ((netWidth+1) * netWidth * (netDepth+1)) + 6;
     for ( var i = 0 ; i < memSize ; i++ )
-        r.net[pt1+i] = r.net[memOutStart+i]; // TODO GET OLD MEM
+        r.net[pt1+i] = r.net[memOutStart+i]%0.5; // TODO GET OLD MEM
     
     for ( var d = 0 ; d < (netDepth+1) ; d++ )
     {
-        var layerStart = netWidth * (d+1);
-        var lastLayer = netWidth * d;
+        var layerStart = netWidth + ((netWidth * (netWidth+1)) * d);
+        var lastLayer = layerStart - (netWidth * (netWidth+1));
+        if ( d == 0 ) lastLayer = 0;
         var layerP2 = layerStart + netWidth;
         
         for ( var i = 0 ; i < netWidth ; i++ )
@@ -211,9 +218,9 @@ function updateRobot(r,fa,fd,ea,ed)
             var node = layerStart + i;
             var nodeValue = 0;
             
-            if ( i == 4 )
-                nodeValue = 10000;
-            else
+            //if ( i == 4 )
+                //nodeValue = 10000;
+            //else
                 for ( var c = 0 ; c < netWidth ; c++ )
                     nodeValue += r.net[lastLayer+c] * r.net[connStart+c];
             
@@ -222,14 +229,12 @@ function updateRobot(r,fa,fd,ea,ed)
     }
     // /NET
     
-    var outPutStart = netWidth * (netDepth+1);
-    
     r.angle = r.net[outPutStart]*360;
     var speed = (r.net[outPutStart+1]-0.5)/2;
     r.velX += trustX( r.angle , speed );
     r.velY += trustY( r.angle , speed );
     
-    r.energie -= Math.abs(speed);
+    r.energie -= Math.abs(speed*2);
     
     if ( r.net[outPutStart+2] > 0.3 && r.energie > 300 )
     {
