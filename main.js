@@ -39,7 +39,7 @@ function init()
         {
             if ( draw )
                 ctx.fillRect(food[i].x,food[i].y,3,3);
-            food[i].value += 0.01;
+            food[i].value += 0.05;
             
             if ( food.length >= 1000 )
             {
@@ -48,7 +48,8 @@ function init()
                 {
                     food[i].value += food[ii].value;
                     food.splice(ii,1);
-                    i -= 1;
+                    if ( ii <= i )
+                        i -= 1;
                 }
             }
         }
@@ -71,7 +72,7 @@ function init()
                     {
                         if ( dist22(robot,robots[ii]) < 10*10 )
                         {
-                            robot.energie += robots[ii].energie;
+                            robot.energie += robots[ii].energie*2;
                             robots[ii].energie = -100;
                         }
                     }
@@ -143,7 +144,7 @@ function mkRobot(x,y,team)
             };
     
     for ( var i = 0 ; i < r.net.length ; i++ )
-        r.net[i] = (Math.random()*2)-1;
+        r.net[i] = (Math.random()*0.1)-0.05;
     
     return r;
 }
@@ -230,9 +231,9 @@ function updateRobot(r,fa,fd,ea,ed)
     
     r.energie -= Math.abs(speed);
     
-    if ( r.net[outPutStart+2] > 0.9 && r.energie > 300 )
+    if ( r.net[outPutStart+2] > 0.3 && r.energie > 300 )
     {
-        r.energie /= 2.2;
+        r.energie /= 3;
         var child = cloneRobot(r);
         robots.push(child);
     }
